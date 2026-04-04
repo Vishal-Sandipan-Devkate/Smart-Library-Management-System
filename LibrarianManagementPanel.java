@@ -1,206 +1,127 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.Date;
 import com.mongodb.client.*;
-import com.mongodb.client.model.*;
+import com.mongodb.client.model.Filters;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
 public class LibrarianManagementPanel extends JPanel {
-    private JTable librarianTable;
-    private DefaultTableModel tableModel;
+
+    private JTable table;
+    private DefaultTableModel model;
 
     public LibrarianManagementPanel() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        initializeComponents();
-        loadLibrarians();
+
+        setLayout(new BorderLayout());
+
+        String[] cols = {"ID", "Username", "Name", "Email", "Status"};
+        model = new DefaultTableModel(cols, 0);
+
+        table = new JTable(model);
+
+        add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JPanel buttons = new JPanel();
+
+        JButton add = new JButton("Add");
+        JButton deactivate = new JButton("Deactivate");
+        JButton activate = new JButton("Activate");
+        JButton refresh = new JButton("Refresh");
+
+        buttons.add(add);
+        buttons.add(deactivate);
+        buttons.add(activate);
+        buttons.add(refresh);
+
+        add(buttons, BorderLayout.SOUTH);
+
+        loadData();
+
+        add.addActionListener(e -> addLibrarian());
+        deactivate.addActionListener(e -> updateStatus(false));
+        activate.addActionListener(e -> updateStatus(true));
+        refresh.addActionListener(e -> loadData());
     }
 
-    private void initializeComponents() {
-        JLabel titleLabel = new JLabel("Manage Librarians");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+    // ================= LOAD =================
+    private void loadData() {
 
-        String[] columns = {"ID", "Username", "Full Name", "Email", "Status"};
-        tableModel = new DefaultTableModel(columns, 0) {
-            public boolean isCellEditable(int r, int c) { return false; }
-        };
-        librarianTable = new JTable(tableModel);
-        librarianTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        librarianTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        librarianTable.setRowHeight(25);
-        librarianTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        model.setRowCount(0);
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton addBtn        = createBtn("Add Librarian");
-        JButton updateBtn     = createBtn("Update Librarian");
-        JButton deactivateBtn = createBtn("Deactivate");
-        JButton reactivateBtn = createBtn("Reactivate");
-        JButton refreshBtn    = createBtn("Refresh");
-        btns.add(addBtn); btns.add(updateBtn); btns.add(deactivateBtn);
-        btns.add(reactivateBtn); btns.add(refreshBtn);
+        MongoCollection<Document> users =
+                DatabaseConnection.getCollection("users");
 
-        add(titleLabel,                  BorderLayout.NORTH);
-        add(new JScrollPane(librarianTable), BorderLayout.CENTER);
-        add(btns,                        BorderLayout.SOUTH);
+        for (Document doc : users.find(Filters.eq("role", "LIBRARIAN"))) {
 
-        addBtn       .addActionListener(e -> addLibrarian());
-        updateBtn    .addActionListener(e -> updateLibrarian());
-        deactivateBtn.addActionListener(e -> toggleActive(false));
-        reactivateBtn.addActionListener(e -> toggleActive(true));
-        refreshBtn   .addActionListener(e -> loadLibrarians());
-    }
-
-    private JButton createBtn(String text) {
-        JButton b = new JButton(text);
-        b.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        b.setBackground(new Color(70, 130, 180));
-        b.setForeground(Color.WHITE);
-        b.setFocusPainted(false); b.setBorderPainted(false);
-        return b;
-    }
-
-    private void loadLibrarians() {
-        tableModel.setRowCount(0);
-        try {
-            for (Document d : DatabaseConnection.getCollection("users")
-                    .find(Filters.eq("role", "LIBRARIAN"))) {
-                tableModel.addRow(new Object[]{
-                    d.getObjectId("_id").toString(),
-                    d.getString("username"),
-                    d.getString("full_name"),
-                    d.getString("email"),
-                    d.getBoolean("is_active", false) ? "Active" : "Inactive"
-                });
-            }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error loading librarians: " + ex.getMessage());
+            model.addRow(new Object[]{
+                    doc.getObjectId("_id").toString(),
+                    doc.getString("username"),
+                    doc.getString("full_name"),
+                    doc.getString("email"),
+                    doc.getBoolean("is_active", true) ? "Active" : "Inactive"
+            });
         }
     }
 
-    private void toggleActive(boolean active) {
-        int row = librarianTable.getSelectedRow();
-        if (row == -1) { JOptionPane.showMessageDialog(this, "Please select a librarian"); return; }
-        String id       = (String) tableModel.getValueAt(row, 0);
-        String username = (String) tableModel.getValueAt(row, 1);
-        String status   = (String) tableModel.getValueAt(row, 4);
-        if (active  && "Active".equals(status))   { JOptionPane.showMessageDialog(this, "Already active");   return; }
-        if (!active && "Inactive".equals(status)) { JOptionPane.showMessageDialog(this, "Already inactive"); return; }
-        int c = JOptionPane.showConfirmDialog(this,
-            (active ? "Reactivate" : "Deactivate") + " librarian: " + username + "?",
-            "Confirm", JOptionPane.YES_NO_OPTION);
-        if (c == JOptionPane.YES_OPTION) {
-            try {
-                DatabaseConnection.getCollection("users").updateOne(
-                    Filters.eq("_id", new ObjectId(id)), Updates.set("is_active", active));
-                JOptionPane.showMessageDialog(this, "Librarian " + (active ? "reactivated" : "deactivated") + " successfully!");
-                loadLibrarians();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
-            }
-        }
-    }
-
+    // ================= ADD =================
     private void addLibrarian() {
-        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Add Librarian", true);
-        dlg.setLayout(new BorderLayout(10, 10));
-        JPanel form = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5,5,5,5); gbc.anchor = GridBagConstraints.WEST;
 
-        JTextField usernameField = new JTextField(20);
-        JPasswordField passwordField = new JPasswordField(20);
-        JTextField fullNameField = new JTextField(20);
-        JTextField emailField    = new JTextField(20);
+        JTextField username = new JTextField();
+        JTextField name = new JTextField();
+        JTextField email = new JTextField();
+        JPasswordField password = new JPasswordField();
 
-        addFormRow(form, gbc, 0, "Username:", usernameField);
-        addFormRow(form, gbc, 1, "Password:", passwordField);
-        addFormRow(form, gbc, 2, "Full Name:", fullNameField);
-        addFormRow(form, gbc, 3, "Email:", emailField);
+        Object[] fields = {
+                "Username:", username,
+                "Password:", password,
+                "Full Name:", name,
+                "Email:", email
+        };
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton addBtn = createBtn("Add"); JButton cancelBtn = createBtn("Cancel");
-        btns.add(addBtn); btns.add(cancelBtn);
+        int option = JOptionPane.showConfirmDialog(this, fields);
 
-        addBtn.addActionListener(e -> {
-            try {
-                MongoCollection<Document> users = DatabaseConnection.getCollection("users");
-                if (users.find(Filters.eq("username", usernameField.getText().trim())).first() != null) {
-                    JOptionPane.showMessageDialog(dlg, "Username already exists!"); return;
-                }
-                users.insertOne(new Document()
-                    .append("username",    usernameField.getText().trim())
-                    .append("password",    new String(passwordField.getPassword()))
-                    .append("full_name",   fullNameField.getText().trim())
-                    .append("email",       emailField.getText().trim())
-                    .append("role",        "LIBRARIAN")
-                    .append("type",        "LIBRARIAN")
-                    .append("is_active",   true)
-                    .append("is_approved", true)
-                    .append("created_at",  new Date()));
-                JOptionPane.showMessageDialog(dlg, "Librarian added successfully!");
-                loadLibrarians(); dlg.dispose();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(dlg, "Error: " + ex.getMessage());
-            }
-        });
-        cancelBtn.addActionListener(e -> dlg.dispose());
+        if (option == JOptionPane.OK_OPTION) {
 
-        dlg.add(form, BorderLayout.CENTER);
-        dlg.add(btns, BorderLayout.SOUTH);
-        dlg.pack(); dlg.setLocationRelativeTo(this); dlg.setVisible(true);
+            MongoCollection<Document> users =
+                    DatabaseConnection.getCollection("users");
+
+            Document doc = new Document()
+                    .append("username", username.getText())
+                    .append("password", new String(password.getPassword()))
+                    .append("full_name", name.getText())
+                    .append("email", email.getText())
+                    .append("role", "LIBRARIAN")
+                    .append("is_active", true);
+
+            users.insertOne(doc);
+
+            JOptionPane.showMessageDialog(this, "Added!");
+            loadData();
+        }
     }
 
-    private void updateLibrarian() {
-        int row = librarianTable.getSelectedRow();
-        if (row == -1) { JOptionPane.showMessageDialog(this, "Please select a librarian"); return; }
-        String id = (String) tableModel.getValueAt(row, 0);
+    // ================= UPDATE STATUS =================
+    private void updateStatus(boolean active) {
 
-        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Update Librarian", true);
-        dlg.setLayout(new BorderLayout(10, 10));
-        JPanel form = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5,5,5,5); gbc.anchor = GridBagConstraints.WEST;
+        int row = table.getSelectedRow();
 
-        JTextField fullNameField = new JTextField(20);
-        JTextField emailField    = new JTextField(20);
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Select user");
+            return;
+        }
 
-        try {
-            Document d = DatabaseConnection.getCollection("users")
-                .find(Filters.eq("_id", new ObjectId(id))).first();
-            if (d != null) { fullNameField.setText(d.getString("full_name")); emailField.setText(d.getString("email")); }
-        } catch (Exception ex) { JOptionPane.showMessageDialog(dlg, "Error loading data"); dlg.dispose(); return; }
+        String id = (String) model.getValueAt(row, 0);
 
-        addFormRow(form, gbc, 0, "Full Name:", fullNameField);
-        addFormRow(form, gbc, 1, "Email:", emailField);
+        MongoCollection<Document> users =
+                DatabaseConnection.getCollection("users");
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton updateBtn = createBtn("Update"); JButton cancelBtn = createBtn("Cancel");
-        btns.add(updateBtn); btns.add(cancelBtn);
+        users.updateOne(
+                Filters.eq("_id", new ObjectId(id)),
+                new Document("$set", new Document("is_active", active))
+        );
 
-        updateBtn.addActionListener(e -> {
-            try {
-                DatabaseConnection.getCollection("users").updateOne(
-                    Filters.eq("_id", new ObjectId(id)),
-                    Updates.combine(
-                        Updates.set("full_name", fullNameField.getText().trim()),
-                        Updates.set("email",     emailField.getText().trim())));
-                JOptionPane.showMessageDialog(dlg, "Librarian updated successfully!");
-                loadLibrarians(); dlg.dispose();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(dlg, "Error: " + ex.getMessage());
-            }
-        });
-        cancelBtn.addActionListener(e -> dlg.dispose());
-
-        dlg.add(form, BorderLayout.CENTER);
-        dlg.add(btns, BorderLayout.SOUTH);
-        dlg.pack(); dlg.setLocationRelativeTo(this); dlg.setVisible(true);
-    }
-
-    private void addFormRow(JPanel p, GridBagConstraints gbc, int row, String label, JComponent field) {
-        gbc.gridx = 0; gbc.gridy = row; p.add(new JLabel(label), gbc);
-        gbc.gridx = 1; p.add(field, gbc);
+        JOptionPane.showMessageDialog(this, "Updated!");
+        loadData();
     }
 }

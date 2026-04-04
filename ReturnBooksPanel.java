@@ -1,117 +1,153 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.Date;
-import com.mongodb.client.*;
-import com.mongodb.client.model.*;
-import org.bson.Document;
-import org.bson.types.ObjectId;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class ReturnBooksPanel extends JPanel {
-    private String userId;
+    private int userId;
     private boolean isDarkMode;
-    private Color darkBackground  = new Color(33, 33, 33);
+    private Color darkBackground = new Color(33, 33, 33);
     private Color lightBackground = new Color(242, 242, 242);
-    private DefaultTableModel model;
 
-    // Constructor with isDarkMode
-    public ReturnBooksPanel(String userId, boolean isDarkMode) {
-        this.userId    = userId;
+    public ReturnBooksPanel(int userId, boolean isDarkMode) {
+        this.userId = userId;
         this.isDarkMode = isDarkMode;
-        init();
-    }
-
-    // Constructor without isDarkMode (for StudentDashboard)
-    public ReturnBooksPanel(String userId) {
-        this.userId    = userId;
-        this.isDarkMode = false;
-        init();
-    }
-
-    private void init() {
+        
         setLayout(new BorderLayout(10, 10));
         setBackground(isDarkMode ? darkBackground : lightBackground);
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+        // Add title
         JLabel titleLabel = new JLabel("Return Books", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(isDarkMode ? Color.WHITE : Color.BLACK);
         add(titleLabel, BorderLayout.NORTH);
 
-        String[] columns = {"Borrowing ID", "Book ID", "Title", "Borrow Date", "Due Date"};
-        model = new DefaultTableModel(columns, 0) {
-            public boolean isCellEditable(int r, int c) { return false; }
+        // Create table
+        String[] columns = {"Book ID", "Title", "Borrow Date", "Due Date"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
         };
-        JTable table = new JTable(model);
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        table.setRowHeight(25);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        add(new JScrollPane(table), BorderLayout.CENTER);
 
-        loadBorrowedBooks();
+        JTable borrowedBooksTable = new JTable(model);
+        borrowedBooksTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        borrowedBooksTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        borrowedBooksTable.setRowHeight(25);
+        borrowedBooksTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        JButton returnBtn = new JButton("Return Selected Book");
-        returnBtn.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        returnBtn.setBackground(new Color(70, 130, 180));
-        returnBtn.setForeground(Color.WHITE);
-        returnBtn.setFocusPainted(false);
-        returnBtn.addActionListener(e -> {
-            int row = table.getSelectedRow();
-            if (row != -1) returnBook(
-                (String) model.getValueAt(row, 0),
-                (String) model.getValueAt(row, 1),
-                model, row);
-            else JOptionPane.showMessageDialog(this, "Please select a book to return");
+        // Load borrowed books
+        loadBorrowedBooks(model);
+
+        // Add table to scroll pane
+        JScrollPane scrollPane = new JScrollPane(borrowedBooksTable);
+        add(scrollPane, BorderLayout.CENTER);
+
+        // Create return button
+        JButton returnButton = new JButton("Return Selected Book");
+        returnButton.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        returnButton.setBackground(new Color(70, 130, 180));
+        returnButton.setForeground(Color.WHITE);
+        returnButton.setFocusPainted(false);
+
+        returnButton.addActionListener(e -> {
+            int selectedRow = borrowedBooksTable.getSelectedRow();
+            if (selectedRow != -1) {
+                int bookId = (int) borrowedBooksTable.getValueAt(selectedRow, 0);
+                returnBook(bookId, model, selectedRow);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "Please select a book to return",
+                    "No Selection",
+                    JOptionPane.WARNING_MESSAGE);
+            }
         });
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        btnPanel.setBackground(isDarkMode ? darkBackground : lightBackground);
-        btnPanel.add(returnBtn);
-        add(btnPanel, BorderLayout.SOUTH);
+        // Add button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.setBackground(isDarkMode ? darkBackground : lightBackground);
+        buttonPanel.add(returnButton);
+        add(buttonPanel, BorderLayout.SOUTH);
     }
 
-    private void loadBorrowedBooks() {
-        model.setRowCount(0);
+    private void loadBorrowedBooks(DefaultTableModel model) {
         try {
-            MongoCollection<Document> borrowings = DatabaseConnection.getCollection("book_borrowings");
-            for (Document b : borrowings.find(Filters.and(
-                    Filters.eq("user_id", userId),
-                    Filters.eq("status", "BORROWED")))) {
-                model.addRow(new Object[]{
-                    b.getObjectId("_id").toString(),
-                    b.getString("book_id"),
-                    b.getString("title"),
-                    b.getDate("borrow_date"),
-                    b.getDate("due_date")
-                });
+            Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT b.book_id, b.title, bb.borrow_date, bb.due_date " +
+                "FROM book_borrowings bb " +
+                "JOIN books b ON bb.book_id = b.book_id " +
+                "WHERE bb.user_id = ? AND bb.status = 'BORROWED'"
+            );
+            stmt.setInt(1, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                Object[] row = {
+                    rs.getInt("book_id"),
+                    rs.getString("title"),
+                    rs.getDate("borrow_date"),
+                    rs.getDate("due_date")
+                };
+                model.addRow(row);
             }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error loading borrowed books: " + ex.getMessage());
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this,
+                "Error loading borrowed books: " + ex.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void returnBook(String borrowingId, String bookId, DefaultTableModel model, int row) {
+    private void returnBook(int bookId, DefaultTableModel model, int row) {
         try {
-            MongoCollection<Document> borrowings = DatabaseConnection.getCollection("book_borrowings");
-            MongoCollection<Document> books      = DatabaseConnection.getCollection("books");
-
-            borrowings.updateOne(
-                Filters.eq("_id", new ObjectId(borrowingId)),
-                Updates.combine(
-                    Updates.set("status",      "RETURNED"),
-                    Updates.set("return_date", new Date())));
+            Connection conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
 
             try {
-                books.updateOne(
-                    Filters.eq("_id", new ObjectId(bookId)),
-                    Updates.inc("available_quantity", 1));
-            } catch (Exception ignored) {}
+                // Update book_borrowings status
+                PreparedStatement updateBorrowingStmt = conn.prepareStatement(
+                    "UPDATE book_borrowings SET status = 'RETURNED', return_date = CURRENT_DATE " +
+                    "WHERE book_id = ? AND user_id = ? AND status = 'BORROWED'"
+                );
+                updateBorrowingStmt.setInt(1, bookId);
+                updateBorrowingStmt.setInt(2, userId);
+                updateBorrowingStmt.executeUpdate();
 
-            model.removeRow(row);
-            JOptionPane.showMessageDialog(this, "Book returned successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error returning book: " + ex.getMessage());
+                // Update book available quantity
+                PreparedStatement updateBookStmt = conn.prepareStatement(
+                    "UPDATE books SET available_quantity = available_quantity + 1 " +
+                    "WHERE book_id = ?"
+                );
+                updateBookStmt.setInt(1, bookId);
+                updateBookStmt.executeUpdate();
+
+                conn.commit();
+                model.removeRow(row);
+                
+                JOptionPane.showMessageDialog(this,
+                    "Book returned successfully",
+                    "Success",
+                    JOptionPane.INFORMATION_MESSAGE);
+                
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this,
+                "Error returning book: " + ex.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 }

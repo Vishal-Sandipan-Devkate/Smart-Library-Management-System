@@ -13,7 +13,6 @@ public class RequestBooksPanel extends JPanel {
     private String userId;
     private JTextField searchField;
 
-    // Constructor with String userId (MongoDB)
     public RequestBooksPanel(String userId) {
         this.userId = userId;
         setLayout(new BorderLayout(10, 10));
@@ -25,7 +24,7 @@ public class RequestBooksPanel extends JPanel {
     private void initializeComponents() {
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchField = new JTextField(20);
-        JButton searchBtn = createBtn("Search");
+        JButton searchBtn  = createBtn("Search");
         searchPanel.add(new JLabel("Search Books: "));
         searchPanel.add(searchField); searchPanel.add(searchBtn);
 
@@ -41,9 +40,9 @@ public class RequestBooksPanel extends JPanel {
         JButton refreshBtn = createBtn("Refresh");
         btnPanel.add(requestBtn); btnPanel.add(refreshBtn);
 
-        add(searchPanel,                BorderLayout.NORTH);
+        add(searchPanel,               BorderLayout.NORTH);
         add(new JScrollPane(booksTable), BorderLayout.CENTER);
-        add(btnPanel,                   BorderLayout.SOUTH);
+        add(btnPanel,                  BorderLayout.SOUTH);
 
         searchBtn .addActionListener(e -> searchBooks());
         requestBtn.addActionListener(e -> requestBook());
@@ -100,7 +99,7 @@ public class RequestBooksPanel extends JPanel {
                 });
             }
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error searching: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Error searching books: " + ex.getMessage());
         }
     }
 
@@ -113,7 +112,7 @@ public class RequestBooksPanel extends JPanel {
         String status    = (String) tableModel.getValueAt(row, 4);
 
         if ("Not Available".equals(status)) {
-            JOptionPane.showMessageDialog(this, "This book is not available."); return;
+            JOptionPane.showMessageDialog(this, "This book is not currently available."); return;
         }
 
         try {
@@ -122,12 +121,14 @@ public class RequestBooksPanel extends JPanel {
                 Filters.eq("user_id", userId),
                 Filters.eq("book_id", bookId),
                 Filters.eq("status",  "BORROWED")));
-            if (already > 0) { JOptionPane.showMessageDialog(this, "You already have this book."); return; }
+            if (already > 0) { JOptionPane.showMessageDialog(this, "You already have this book borrowed."); return; }
 
+            // Update available quantity
             DatabaseConnection.getCollection("books").updateOne(
                 Filters.and(Filters.eq("_id", new ObjectId(bookId)), Filters.gt("available_quantity", 0)),
                 Updates.inc("available_quantity", -1));
 
+            // Create borrowing record
             Calendar cal = Calendar.getInstance();
             cal.add(Calendar.DAY_OF_MONTH, 14);
             borrowings.insertOne(new Document()
@@ -143,7 +144,7 @@ public class RequestBooksPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Book borrowed successfully! Due in 14 days.");
             loadAvailableBooks();
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Error requesting book: " + ex.getMessage());
         }
     }
 }

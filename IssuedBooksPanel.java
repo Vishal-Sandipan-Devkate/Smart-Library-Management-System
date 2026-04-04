@@ -1,153 +1,178 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.Date;
 import com.mongodb.client.*;
-import com.mongodb.client.model.*;
+import com.mongodb.client.model.Filters;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 
 public class IssuedBooksPanel extends JPanel {
+
     private String userId;
     private boolean isDarkMode;
-    private Color darkBackground  = new Color(33, 33, 33);
-    private Color lightBackground = new Color(242, 242, 242);
+
+    private JTable table;
+    private DefaultTableModel model;
 
     public IssuedBooksPanel(String userId, boolean isDarkMode) {
-        this.userId    = userId;
+
+        this.userId = userId;
         this.isDarkMode = isDarkMode;
+
         setLayout(new BorderLayout(10, 10));
-        setBackground(isDarkMode ? darkBackground : lightBackground);
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel titleLabel = new JLabel("Issued Books", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        titleLabel.setForeground(isDarkMode ? Color.WHITE : Color.BLACK);
+        // Title
+        JLabel title = new JLabel("Issued Books", SwingConstants.CENTER);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        add(title, BorderLayout.NORTH);
 
-        String[] columns = {"Book ID", "Title", "Student ID", "Student Name", "Borrow Date", "Due Date", "Status"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0) {
-            public boolean isCellEditable(int r, int c) { return false; }
-        };
-        JTable table = new JTable(model);
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        table.setRowHeight(25);
+        // Table
+        String[] cols = {"Book", "Student", "Issue Date", "Due Date", "Status"};
+        model = new DefaultTableModel(cols, 0);
+        table = new JTable(model);
 
-        // Search panel
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.setBackground(isDarkMode ? darkBackground : lightBackground);
-        JTextField searchField = new JTextField(20);
+        add(new JScrollPane(table), BorderLayout.CENTER);
+
+        // Search Panel
+        JPanel top = new JPanel();
+        JTextField search = new JTextField(20);
         JButton searchBtn = new JButton("Search");
-        searchBtn.setBackground(new Color(70, 130, 180));
-        searchBtn.setForeground(Color.WHITE);
-        String[] filterOptions = {"All", "BORROWED", "OVERDUE", "RETURNED"};
-        JComboBox<String> filterCombo = new JComboBox<>(filterOptions);
-        searchPanel.add(new JLabel("Search: ")); searchPanel.add(searchField); searchPanel.add(searchBtn);
-        searchPanel.add(Box.createHorizontalStrut(20));
-        searchPanel.add(new JLabel("Filter: ")); searchPanel.add(filterCombo);
 
-        JPanel northPanel = new JPanel(new BorderLayout());
-        northPanel.add(titleLabel,   BorderLayout.NORTH);
-        northPanel.add(searchPanel,  BorderLayout.CENTER);
-        add(northPanel, BorderLayout.NORTH);
-        add(new JScrollPane(table),  BorderLayout.CENTER);
+        String[] filters = {"All", "BORROWED", "RETURNED"};
+        JComboBox<String> filterBox = new JComboBox<>(filters);
 
-        // Stats panel
-        JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        statsPanel.setBackground(isDarkMode ? darkBackground : lightBackground);
-        add(statsPanel, BorderLayout.SOUTH);
+        top.add(new JLabel("Search:"));
+        top.add(search);
+        top.add(searchBtn);
+        top.add(new JLabel("Filter:"));
+        top.add(filterBox);
 
-        loadIssuedBooks(model, "All");
-        updateStatistics(statsPanel);
+        add(top, BorderLayout.NORTH);
 
-        searchBtn.addActionListener(e -> searchIssuedBooks(model, searchField.getText().trim(), (String) filterCombo.getSelectedItem()));
-        filterCombo.addActionListener(e -> loadIssuedBooks(model, (String) filterCombo.getSelectedItem()));
+        // Stats
+        JPanel stats = new JPanel();
+        add(stats, BorderLayout.SOUTH);
+
+        // Load
+        loadData("All");
+
+        // Actions
+        searchBtn.addActionListener(e ->
+                searchData(search.getText(), (String) filterBox.getSelectedItem()));
+
+        filterBox.addActionListener(e ->
+                loadData((String) filterBox.getSelectedItem()));
+
+        updateStats(stats);
     }
 
-    private void loadIssuedBooks(DefaultTableModel model, String filter) {
+    // ================= LOAD =================
+    private void loadData(String filter) {
+
         model.setRowCount(0);
-        try {
-            MongoCollection<Document> borrowings = DatabaseConnection.getCollection("book_borrowings");
-            MongoCollection<Document> books      = DatabaseConnection.getCollection("books");
-            MongoCollection<Document> users      = DatabaseConnection.getCollection("users");
 
-            Iterable<Document> docs = filter.equals("All")
-                ? borrowings.find()
-                : borrowings.find(Filters.eq("status", filter));
+        MongoCollection<Document> borrowings =
+                DatabaseConnection.getCollection("book_borrowings");
 
-            for (Document b : docs) {
-                String bookId  = b.getString("book_id");
-                String uId     = b.getString("user_id");
-                String title   = b.getString("title");
-                String fullName = "";
+        MongoCollection<Document> users =
+                DatabaseConnection.getCollection("users");
 
-                try {
-                    Document user = users.find(Filters.eq("_id", new org.bson.types.ObjectId(uId))).first();
-                    if (user != null) fullName = user.getString("full_name");
-                } catch (Exception ignored) {}
+        MongoCollection<Document> books =
+                DatabaseConnection.getCollection("books");
 
-                model.addRow(new Object[]{
-                    bookId, title == null ? bookId : title,
-                    uId, fullName,
-                    b.getDate("borrow_date"),
-                    b.getDate("due_date"),
-                    b.getString("status")
-                });
-            }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error loading issued books: " + ex.getMessage());
+        FindIterable<Document> docs;
+
+        if (filter.equals("All")) {
+            docs = borrowings.find();
+        } else {
+            docs = borrowings.find(Filters.eq("status", filter));
+        }
+
+        for (Document doc : docs) {
+
+            String bookId = doc.getString("book_id");
+            String userId = doc.getString("user_id");
+
+            Document book = books.find(
+                    Filters.eq("_id", new ObjectId(bookId))
+            ).first();
+
+            Document user = users.find(
+                    Filters.eq("_id", new ObjectId(userId))
+            ).first();
+
+            model.addRow(new Object[]{
+                    (book != null) ? book.getString("title") : "Unknown",
+                    (user != null) ? user.getString("full_name") : "Unknown",
+                    new java.util.Date(doc.getLong("borrow_date")),
+                    new java.util.Date(doc.getLong("due_date")),
+                    doc.getString("status")
+            });
         }
     }
 
-    private void searchIssuedBooks(DefaultTableModel model, String searchText, String filter) {
+    // ================= SEARCH =================
+    private void searchData(String text, String filter) {
+
         model.setRowCount(0);
-        try {
-            MongoCollection<Document> borrowings = DatabaseConnection.getCollection("book_borrowings");
-            MongoCollection<Document> users      = DatabaseConnection.getCollection("users");
 
-            Iterable<Document> docs = filter.equals("All")
-                ? borrowings.find(Filters.regex("title", searchText, "i"))
-                : borrowings.find(Filters.and(
-                    Filters.regex("title", searchText, "i"),
-                    Filters.eq("status", filter)));
+        MongoCollection<Document> borrowings =
+                DatabaseConnection.getCollection("book_borrowings");
 
-            for (Document b : docs) {
-                String uId = b.getString("user_id");
-                String fullName = "";
-                try {
-                    Document user = users.find(Filters.eq("_id", new org.bson.types.ObjectId(uId))).first();
-                    if (user != null) fullName = user.getString("full_name");
-                } catch (Exception ignored) {}
+        MongoCollection<Document> users =
+                DatabaseConnection.getCollection("users");
 
+        MongoCollection<Document> books =
+                DatabaseConnection.getCollection("books");
+
+        for (Document doc : borrowings.find()) {
+
+            String bookId = doc.getString("book_id");
+            String userId = doc.getString("user_id");
+
+            Document book = books.find(
+                    Filters.eq("_id", new ObjectId(bookId))
+            ).first();
+
+            Document user = users.find(
+                    Filters.eq("_id", new ObjectId(userId))
+            ).first();
+
+            String title = (book != null) ? book.getString("title") : "";
+            String name = (user != null) ? user.getString("full_name") : "";
+
+            boolean match = title.toLowerCase().contains(text.toLowerCase()) ||
+                            name.toLowerCase().contains(text.toLowerCase());
+
+            boolean filterMatch = filter.equals("All") ||
+                                  doc.getString("status").equals(filter);
+
+            if (match && filterMatch) {
                 model.addRow(new Object[]{
-                    b.getString("book_id"), b.getString("title"),
-                    uId, fullName,
-                    b.getDate("borrow_date"), b.getDate("due_date"), b.getString("status")
+                        title,
+                        name,
+                        new java.util.Date(doc.getLong("borrow_date")),
+                        new java.util.Date(doc.getLong("due_date")),
+                        doc.getString("status")
                 });
             }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error searching: " + ex.getMessage());
         }
     }
 
-    private void updateStatistics(JPanel statsPanel) {
-        try {
-            MongoCollection<Document> borrowings = DatabaseConnection.getCollection("book_borrowings");
-            long total    = borrowings.countDocuments();
-            long current  = borrowings.countDocuments(Filters.eq("status", "BORROWED"));
-            long overdue  = borrowings.countDocuments(Filters.and(
-                Filters.eq("status", "BORROWED"), Filters.lt("due_date", new Date())));
+    // ================= STATS =================
+    private void updateStats(JPanel panel) {
 
-            JLabel totalLbl   = new JLabel("Total Issues: " + total);
-            JLabel currentLbl = new JLabel("Currently Issued: " + current);
-            JLabel overdueLbl = new JLabel("Overdue: " + overdue);
-            totalLbl  .setForeground(isDarkMode ? Color.WHITE : Color.BLACK);
-            currentLbl.setForeground(isDarkMode ? Color.WHITE : Color.BLACK);
-            overdueLbl.setForeground(Color.RED);
-            statsPanel.add(totalLbl);
-            statsPanel.add(Box.createHorizontalStrut(20));
-            statsPanel.add(currentLbl);
-            statsPanel.add(Box.createHorizontalStrut(20));
-            statsPanel.add(overdueLbl);
-        } catch (Exception ex) { ex.printStackTrace(); }
+        panel.removeAll();
+
+        MongoCollection<Document> borrowings =
+                DatabaseConnection.getCollection("book_borrowings");
+
+        long total = borrowings.countDocuments();
+        long current = borrowings.countDocuments(Filters.eq("status", "BORROWED"));
+        long returned = borrowings.countDocuments(Filters.eq("status", "RETURNED"));
+
+        panel.add(new JLabel("Total: " + total));
+        panel.add(new JLabel("Active: " + current));
+        panel.add(new JLabel("Returned: " + returned));
     }
 }

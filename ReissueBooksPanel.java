@@ -16,17 +16,9 @@ public class ReissueBooksPanel extends JPanel {
 
         this.userId = userId;
 
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        createUI();
-        loadBooks();
-    }
-
-    private void createUI() {
+        setLayout(new BorderLayout());
 
         String[] cols = {"Borrow ID", "Book", "Borrow Date", "Due Date", "Status"};
-
         model = new DefaultTableModel(cols, 0);
         table = new JTable(model);
 
@@ -34,20 +26,22 @@ public class ReissueBooksPanel extends JPanel {
 
         JPanel panel = new JPanel();
 
-        JButton reissueBtn = new JButton("Reissue Book");
-        JButton refreshBtn = new JButton("Refresh");
+        JButton reissue = new JButton("Reissue");
+        JButton refresh = new JButton("Refresh");
 
-        panel.add(reissueBtn);
-        panel.add(refreshBtn);
+        panel.add(reissue);
+        panel.add(refresh);
 
         add(panel, BorderLayout.SOUTH);
 
-        reissueBtn.addActionListener(e -> reissueBook());
-        refreshBtn.addActionListener(e -> loadBooks());
+        loadData();
+
+        reissue.addActionListener(e -> reissueBook());
+        refresh.addActionListener(e -> loadData());
     }
 
     // ================= LOAD =================
-    private void loadBooks() {
+    private void loadData() {
 
         model.setRowCount(0);
 
@@ -64,10 +58,8 @@ public class ReissueBooksPanel extends JPanel {
                 )
         )) {
 
-            String bookId = doc.getString("book_id");
-
             Document book = books.find(
-                    Filters.eq("_id", new ObjectId(bookId))
+                    Filters.eq("_id", new ObjectId(doc.getString("book_id")))
             ).first();
 
             model.addRow(new Object[]{
@@ -85,13 +77,12 @@ public class ReissueBooksPanel extends JPanel {
 
         int row = table.getSelectedRow();
 
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Select a book first!");
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Select a book!");
             return;
         }
 
         String borrowId = (String) model.getValueAt(row, 0);
-        String bookTitle = (String) model.getValueAt(row, 1);
 
         MongoCollection<Document> borrowings =
                 DatabaseConnection.getCollection("book_borrowings");
@@ -105,7 +96,7 @@ public class ReissueBooksPanel extends JPanel {
         // Check already reissued
         if (record.getBoolean("reissued", false)) {
             JOptionPane.showMessageDialog(this,
-                    "This book has already been reissued once!");
+                    "Already reissued once!");
             return;
         }
 
@@ -119,9 +110,8 @@ public class ReissueBooksPanel extends JPanel {
                 )
         );
 
-        JOptionPane.showMessageDialog(this,
-                "Book '" + bookTitle + "' reissued successfully!");
+        JOptionPane.showMessageDialog(this, "Book reissued successfully!");
 
-        loadBooks();
+        loadData();
     }
 }
