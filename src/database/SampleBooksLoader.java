@@ -1,3 +1,5 @@
+package database;
+import database.DatabaseConnection;
 import com.mongodb.client.*;
 import org.bson.Document;
 import java.util.Arrays;

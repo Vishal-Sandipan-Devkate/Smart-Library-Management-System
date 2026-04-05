@@ -71,7 +71,7 @@ public class StatusPanel extends JPanel {
                     new java.util.Date(doc.getLong("borrow_date")),
                     new java.util.Date(doc.getLong("due_date")),
                     doc.getString("status"),
-                    "₹" + doc.getDouble("fine_amount", 0.0)
+                    "₹" + ((Number) doc.getOrDefault("fine_amount", 0)).doubleValue()
             });
         }
     }
@@ -90,7 +90,7 @@ public class StatusPanel extends JPanel {
                         Filters.eq("fine_paid", false)
                 )
         )) {
-            total += doc.getDouble("fine_amount", 0.0);
+            total += ((Number) doc.getOrDefault("fine_amount", 0)).doubleValue();
         }
 
         fineLabel.setText("Total Outstanding Fines: ₹" + total);

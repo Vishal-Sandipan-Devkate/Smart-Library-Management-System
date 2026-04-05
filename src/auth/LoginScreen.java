@@ -1,268 +1,328 @@
 package auth;
-import dashboard.*;
 import database.DatabaseConnection;
+import dashboard.*;
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
+import java.awt.event.*;
 import com.mongodb.client.*;
 import com.mongodb.client.model.Filters;
 import org.bson.Document;
 
 public class LoginScreen extends JFrame {
-    private JTextField usernameField;
+    private static final Color PRIMARY       = new Color(13, 71, 161);
+    private static final Color PRIMARY_LIGHT = new Color(21, 101, 192);
+    private static final Color ACCENT        = new Color(255, 171, 0);
+    private static final Color BG_DARK       = new Color(10, 25, 47);
+    private static final Color BG_MID        = new Color(15, 40, 70);
+    private static final Color TEXT_DARK     = new Color(18, 30, 50);
+    private static final Color TEXT_MUTED    = new Color(100, 116, 139);
+    private static final Color BORDER_COLOR  = new Color(213, 220, 230);
+    private static final Color FIELD_FOCUS   = new Color(13, 71, 161);
+    private static final Color SUCCESS       = new Color(16, 185, 129);
+
+    private JTextField     usernameField;
     private JPasswordField passwordField;
-    private JComboBox<String> roleComboBox;
-    private RoundedPanel loginPanel;
-    private GradientPanel mainPanel;
+    private JComboBox<String> roleBox;
+    private JButton        loginBtn;
+    private JLabel         statusLabel;
 
     public LoginScreen() {
-        setTitle("Library Management System");
-        setSize(500, 600);
+        setTitle("Library Management System — Login");
+        setSize(980, 640);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setResizable(false);
 
-<<<<<<< HEAD:LoginScreen.java
-        mainPanel = new GradientPanel();
-        mainPanel.setLayout(new GridBagLayout());
-        createLoginPanel();
-        mainPanel.add(loginPanel);
-=======
-        // Main gradient panel
-        JPanel mainPanel = new JPanel(new GridBagLayout()) {
-            protected void paintComponent(Graphics g) {
+        JPanel root = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setPaint(new GradientPaint(0, 0, new Color(41, 128, 185),
-                    0, getHeight(), new Color(109, 213, 250)));
-                g2d.fillRect(0, 0, getWidth(), getHeight());
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setPaint(new GradientPaint(0, 0, BG_DARK, getWidth(), getHeight(), BG_MID));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.06f));
+                g2.setColor(Color.WHITE);
+                g2.fillOval(-80, -80, 320, 320);
+                g2.fillOval(50, 420, 200, 200);
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
             }
         };
+        root.add(buildLeftPanel(), BorderLayout.WEST);
+        root.add(buildRightPanel(), BorderLayout.CENTER);
+        setContentPane(root);
+    }
 
-        // Login card
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBackground(new Color(255, 255, 255, 230));
-        card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1, true),
-            BorderFactory.createEmptyBorder(30, 40, 30, 40)));
+    private JPanel buildLeftPanel() {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        p.setPreferredSize(new Dimension(420, 640));
+        p.setLayout(new GridBagLayout());
+        GridBagConstraints g = new GridBagConstraints();
+        g.gridx = 0; g.gridy = GridBagConstraints.RELATIVE;
+        g.anchor = GridBagConstraints.WEST;
+        g.fill   = GridBagConstraints.HORIZONTAL;
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets  = new Insets(10, 10, 10, 10);
-        gbc.fill    = GridBagConstraints.HORIZONTAL;
-        gbc.gridwidth = 2;
+        JLabel sys = new JLabel("Smart Library");
+        sys.setFont(new Font("Georgia", Font.BOLD, 24));
+        sys.setForeground(ACCENT);
+        g.insets = new Insets(0, 54, 4, 20);
+        p.add(sys, g);
 
-        // Title
-        JLabel titleLabel = new JLabel("Library Management System", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        titleLabel.setForeground(new Color(44, 62, 80));
-        gbc.gridx = 0; gbc.gridy = 0;
-        card.add(titleLabel, gbc);
+        JLabel mgmt = new JLabel("Management System");
+        mgmt.setFont(new Font("Georgia", Font.PLAIN, 16));
+        mgmt.setForeground(new Color(200, 215, 235));
+        g.insets = new Insets(0, 54, 28, 20);
+        p.add(mgmt, g);
 
-        // Username
-        gbc.gridy = 1;
-        JPanel usernamePanel = new JPanel(new BorderLayout(5, 0));
-        usernamePanel.setOpaque(false);
-        JLabel userLbl = new JLabel("Username:");
-        userLbl.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        userLbl.setForeground(new Color(44, 62, 80));
-        usernameField = new JTextField(20);
-        styleField(usernameField);
-        usernamePanel.add(userLbl, BorderLayout.NORTH);
-        usernamePanel.add(usernameField, BorderLayout.CENTER);
-        card.add(usernamePanel, gbc);
+        JSeparator sep = new JSeparator();
+        sep.setForeground(new Color(255,255,255,30));
+        g.insets = new Insets(0, 54, 24, 20);
+        p.add(sep, g);
 
-        // Password
-        gbc.gridy = 2;
-        JPanel passwordPanel = new JPanel(new BorderLayout(5, 0));
-        passwordPanel.setOpaque(false);
-        JLabel passLbl = new JLabel("Password:");
-        passLbl.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        passLbl.setForeground(new Color(44, 62, 80));
-        passwordField = new JPasswordField(20);
-        styleField(passwordField);
-        passwordPanel.add(passLbl, BorderLayout.NORTH);
-        passwordPanel.add(passwordField, BorderLayout.CENTER);
-        card.add(passwordPanel, gbc);
+        String[] features = {
+            "Manage books & inventory",
+            "Multi-role access control",
+            "Reports & analytics",
+            "Real-time notifications",
+            "ISBN & QR scanning"
+        };
+        for (String f : features) {
+            JLabel lbl = new JLabel("•  " + f);
+            lbl.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            lbl.setForeground(new Color(180, 200, 225));
+            g.insets = new Insets(3, 54, 3, 20);
+            p.add(lbl, g);
+        }
 
-        // Role
-        gbc.gridy = 3;
-        JPanel rolePanel = new JPanel(new BorderLayout(5, 0));
-        rolePanel.setOpaque(false);
-        JLabel roleLbl = new JLabel("Role:");
-        roleLbl.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        roleLbl.setForeground(new Color(44, 62, 80));
+        JLabel footer = new JLabel("© 2025 Smart Library System");
+        footer.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        footer.setForeground(new Color(100, 130, 165));
+        g.insets = new Insets(40, 54, 0, 20);
+        p.add(footer, g);
+        return p;
+    }
+
+    private JPanel buildRightPanel() {
+        JPanel outer = new JPanel(new GridBagLayout());
+        outer.setOpaque(false);
+
+        JPanel card = new JPanel(new GridBagLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+            }
+            @Override protected void paintBorder(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(230, 236, 245));
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 20, 20);
+            }
+        };
+        card.setOpaque(false);
+        card.setPreferredSize(new Dimension(400, 480));
+
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0; gc.gridy = GridBagConstraints.RELATIVE;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+
+        JLabel welcome = new JLabel("Welcome Back");
+        welcome.setFont(new Font("Georgia", Font.BOLD, 26));
+        welcome.setForeground(TEXT_DARK);
+        gc.insets = new Insets(36, 36, 2, 36);
+        card.add(welcome, gc);
+
+        JLabel sub = new JLabel("Sign in to your account to continue");
+        sub.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        sub.setForeground(TEXT_MUTED);
+        gc.insets = new Insets(0, 36, 20, 36);
+        card.add(sub, gc);
+
+        gc.insets = new Insets(0, 36, 4, 36);
+        card.add(fieldLabel("Username"), gc);
+        usernameField = new JTextField();
+        styleField(usernameField, "Enter your username");
+        gc.insets = new Insets(0, 36, 14, 36);
+        card.add(usernameField, gc);
+
+        gc.insets = new Insets(0, 36, 4, 36);
+        card.add(fieldLabel("Password"), gc);
+        passwordField = new JPasswordField();
+        styleField(passwordField, "");
+        gc.insets = new Insets(0, 36, 14, 36);
+        card.add(passwordField, gc);
+
+        gc.insets = new Insets(0, 36, 4, 36);
+        card.add(fieldLabel("Role"), gc);
         roleBox = new JComboBox<>(new String[]{"ADMIN", "LIBRARIAN", "STUDENT"});
-        roleBox.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        roleBox.setPreferredSize(new Dimension(250, 38));
-        rolePanel.add(roleLbl, BorderLayout.NORTH);
-        rolePanel.add(roleBox, BorderLayout.CENTER);
-        card.add(rolePanel, gbc);
+        styleComboBox(roleBox);
+        gc.insets = new Insets(0, 36, 16, 36);
+        card.add(roleBox, gc);
 
-        // Login button
-        gbc.gridy = 4;
-        gbc.insets = new Insets(20, 10, 5, 10);
-        JButton loginBtn = new JButton("LOGIN");
-        loginBtn.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        loginBtn.setBackground(Color.orange);
-        loginBtn.setForeground(Color.BLUE);
-        loginBtn.setFocusPainted(false);
-        loginBtn.setBorderPainted(false);
-        loginBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        loginBtn.setPreferredSize(new Dimension(250, 42));
+        statusLabel = new JLabel(" ");
+        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statusLabel.setForeground(new Color(220, 53, 69));
+        statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        gc.insets = new Insets(0, 36, 4, 36);
+        card.add(statusLabel, gc);
+
+        loginBtn = buildButton("Sign In", PRIMARY, PRIMARY_LIGHT, Color.WHITE);
         loginBtn.addActionListener(e -> login());
-        // Allow pressing Enter to login
         passwordField.addActionListener(e -> login());
-        card.add(loginBtn, gbc);
+        gc.insets = new Insets(0, 36, 10, 36);
+        card.add(loginBtn, gc);
 
-        // Sign up button
-        gbc.gridy = 5;
-        gbc.insets = new Insets(5, 10, 10, 10);
-        JButton signUpBtn = new JButton("Create New Account");
-        signUpBtn.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        signUpBtn.setBackground(Color.red);
-        signUpBtn.setForeground(Color.green);
-        signUpBtn.setFocusPainted(false);
-        signUpBtn.setBorderPainted(false);
-        signUpBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        signUpBtn.setPreferredSize(new Dimension(250, 42));
+        JButton signUpBtn = buildButton("Create New Account", new Color(5, 150, 105), new Color(4, 120, 87), Color.WHITE);
         signUpBtn.addActionListener(e -> { new SignUpScreen().setVisible(true); dispose(); });
-        card.add(signUpBtn, gbc);
+        gc.insets = new Insets(0, 36, 36, 36);
+        card.add(signUpBtn, gc);
 
-        mainPanel.add(card);
->>>>>>> vishal-work-branch:src/auth/LoginScreen.java
-        add(mainPanel);
+        outer.add(card);
+        return outer;
     }
 
-    private void createLoginPanel() {
-        loginPanel = new RoundedPanel(20, new Color(255,255,255,220));
-        loginPanel.setLayout(new GridBagLayout());
-        loginPanel.setBorder(BorderFactory.createEmptyBorder(20,40,20,40));
-
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10,10,10,10);
-        gbc.gridwidth = 2;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-
-        // Title
-        JLabel titleLabel = new JLabel("Library Management System");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        titleLabel.setForeground(new Color(44,62,80));
-        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        gbc.gridx = 0; gbc.gridy = 0;
-        loginPanel.add(titleLabel, gbc);
-
-        // Username
-        gbc.gridy++;
-        JPanel usernamePanel = createInputPanel("Username:");
-        usernameField = new JTextField(20);
-        styleTextField(usernameField);
-        usernamePanel.add(usernameField);
-        loginPanel.add(usernamePanel, gbc);
-
-        // Password
-        gbc.gridy++;
-        JPanel passwordPanel = createInputPanel("Password:");
-        passwordField = new JPasswordField(20);
-        styleTextField(passwordField);
-        passwordPanel.add(passwordField);
-        loginPanel.add(passwordPanel, gbc);
-
-        // Role
-        gbc.gridy++;
-        JPanel rolePanel = createInputPanel("Role:");
-        String[] roles = {"Admin","Librarian","Student"};
-        roleComboBox = new JComboBox<>(roles);
-        styleComboBox(roleComboBox);
-        rolePanel.add(roleComboBox);
-        loginPanel.add(rolePanel, gbc);
-
-        // Login Button
-        gbc.gridy++;
-        gbc.insets = new Insets(20,0,10,0);
-        CustomButton loginButton = new CustomButton("LOGIN", new Color(41,128,185), false);
-        loginButton.addActionListener(e -> handleLogin());
-        passwordField.addActionListener(e -> handleLogin());
-        loginPanel.add(loginButton, gbc);
-
-        // Sign Up Button
-        gbc.gridy++;
-        gbc.insets = new Insets(0,0,10,0);
-        CustomButton signUpButton = new CustomButton("Create New Account", new Color(46,204,113), false);
-        signUpButton.addActionListener(e -> { new SignUpScreen().setVisible(true); dispose(); });
-        loginPanel.add(signUpButton, gbc);
+    private JLabel fieldLabel(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        l.setForeground(new Color(55, 65, 81));
+        return l;
     }
 
-    private JPanel createInputPanel(String labelText) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT,10,5));
-        panel.setOpaque(false);
-        JLabel label = new JLabel(labelText);
-        label.setForeground(new Color(44,62,80));
-        label.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        panel.add(label);
-        return panel;
+    private void styleField(JTextField f, String placeholder) {
+        f.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        f.setPreferredSize(new Dimension(0, 44));
+        f.setBackground(new Color(248, 250, 252));
+        f.setForeground(placeholder.isEmpty() ? TEXT_DARK : TEXT_MUTED);
+        f.setCaretColor(PRIMARY);
+        f.setBorder(BorderFactory.createCompoundBorder(
+            new RoundedBorder(8, BORDER_COLOR, 1.2f),
+            BorderFactory.createEmptyBorder(8, 14, 8, 14)));
+        if (!placeholder.isEmpty()) {
+            f.setText(placeholder);
+            f.addFocusListener(new FocusAdapter() {
+                public void focusGained(FocusEvent e) {
+                    if (f.getText().equals(placeholder)) { f.setText(""); f.setForeground(TEXT_DARK); }
+                    f.setBorder(BorderFactory.createCompoundBorder(new RoundedBorder(8, FIELD_FOCUS, 2f), BorderFactory.createEmptyBorder(8, 14, 8, 14)));
+                    f.setBackground(Color.WHITE);
+                }
+                public void focusLost(FocusEvent e) {
+                    if (f.getText().isEmpty()) { f.setText(placeholder); f.setForeground(TEXT_MUTED); }
+                    f.setBorder(BorderFactory.createCompoundBorder(new RoundedBorder(8, BORDER_COLOR, 1.2f), BorderFactory.createEmptyBorder(8, 14, 8, 14)));
+                    f.setBackground(new Color(248, 250, 252));
+                }
+            });
+        }
     }
 
-    private void styleTextField(JTextField textField) {
-        textField.setPreferredSize(new Dimension(250,35));
-        textField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        textField.setBorder(BorderFactory.createCompoundBorder(
-            new LineBorder(new Color(189,195,199),1,true),
-            BorderFactory.createEmptyBorder(5,10,5,10)));
-        textField.setBackground(Color.WHITE);
+    private void styleComboBox(JComboBox<String> cb) {
+        cb.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        cb.setBackground(new Color(248, 250, 252));
+        cb.setForeground(TEXT_DARK);
+        cb.setPreferredSize(new Dimension(0, 44));
+        cb.setBorder(new RoundedBorder(8, BORDER_COLOR, 1.2f));
+        cb.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+                setBackground(isSelected ? PRIMARY : Color.WHITE);
+                setForeground(isSelected ? Color.WHITE : TEXT_DARK);
+                return this;
+            }
+        });
     }
 
-    private void styleComboBox(JComboBox<String> c) {
-        c.setPreferredSize(new Dimension(250,35));
-        c.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        c.setBorder(new LineBorder(new Color(189,195,199),1,true));
-        c.setBackground(Color.WHITE);
+    private JButton buildButton(String text, Color bg, Color hover, Color fg) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isPressed() ? hover.darker() : getModel().isRollover() ? hover : bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                super.paintComponent(g);
+            }
+        };
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btn.setForeground(fg);
+        btn.setPreferredSize(new Dimension(0, 46));
+        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
     }
 
-    private void handleLogin() {
+    private void login() {
         String username = usernameField.getText().trim();
-        String password = new String(passwordField.getPassword());
-        String role     = (String) roleComboBox.getSelectedItem();
+        String password = new String(passwordField.getPassword()).trim();
+        String role     = roleBox.getSelectedItem().toString();
 
-        if (username.isEmpty() || password.isEmpty()) {
-            showError("Please enter both username and password!"); return;
+        if (username.isEmpty() || username.equals("Enter your username") || password.isEmpty()) {
+            statusLabel.setText("Please enter your username and password.");
+            return;
         }
 
-        try {
-            MongoCollection<Document> users = DatabaseConnection.getCollection("users");
-            if (users == null) { showError("Cannot connect to MongoDB.\nMake sure MongoDB is running!"); return; }
+        loginBtn.setText("Signing in...");
+        loginBtn.setEnabled(false);
+        statusLabel.setText(" ");
 
-            Document user = users.find(Filters.and(
-                Filters.eq("username", username),
-                Filters.eq("password", password),
-                Filters.eq("role", role.toUpperCase())
-            )).first();
+        new Thread(() -> {
+            try {
+                MongoCollection<Document> users = DatabaseConnection.getCollection("users");
+                if (users == null) {
+                    SwingUtilities.invokeLater(() -> { statusLabel.setText("Cannot connect to database."); resetBtn(); });
+                    return;
+                }
+                Document user = users.find(Filters.and(
+                    Filters.eq("username", username),
+                    Filters.eq("password", password),
+                    Filters.eq("role",     role)
+                )).first();
 
-            if (user == null) { showError("Invalid credentials!"); return; }
-
-            Boolean approved = user.getBoolean("is_approved");
-            if (approved == null || !approved) {
-                showError("Your account is pending admin approval.\nPlease wait for approval."); return;
+                SwingUtilities.invokeLater(() -> {
+                    if (user == null) { statusLabel.setText("Invalid username, password, or role."); resetBtn(); return; }
+                    Boolean approved = user.getBoolean("is_approved");
+                    if (approved == null || !approved) { statusLabel.setText("Account pending admin approval."); resetBtn(); return; }
+                    String uid = user.getObjectId("_id").toString();
+                    dispose();
+                    switch (role) {
+                        case "ADMIN":     new AdminDashboard(uid).setVisible(true);     break;
+                        case "LIBRARIAN": new LibrarianDashboard(uid).setVisible(true); break;
+                        case "STUDENT":   new StudentDashboard(uid).setVisible(true);   break;
+                    }
+                });
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> { statusLabel.setText("Error: " + ex.getMessage()); resetBtn(); });
             }
-
-            String userId = user.getObjectId("_id").toString();
-            dispose();
-            switch (role.toUpperCase()) {
-                case "ADMIN":     new AdminDashboard(userId).setVisible(true);     break;
-                case "LIBRARIAN": new LibrarianDashboard(userId).setVisible(true); break;
-                case "STUDENT":   new StudentDashboard(userId).setVisible(true);   break;
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            showError("Database error: " + ex.getMessage());
-        }
+        }).start();
     }
 
-    private void showError(String msg) {
-        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
-    }
+    private void resetBtn() { loginBtn.setText("Sign In"); loginBtn.setEnabled(true); }
 
     public static void main(String[] args) {
-        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
         SwingUtilities.invokeLater(() -> new LoginScreen().setVisible(true));
+    }
+
+    public static class RoundedBorder implements Border {
+        private final int radius;
+        private final Color color;
+        private final float thickness;
+        public RoundedBorder(int r, Color c, float t) { radius = r; color = c; thickness = t; }
+        public Insets getBorderInsets(Component c) { return new Insets(radius/2, radius/2, radius/2, radius/2); }
+        public boolean isBorderOpaque() { return false; }
+        public void paintBorder(Component c, Graphics g, int x, int y, int w, int h) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(color);
+            g2.setStroke(new BasicStroke(thickness));
+            g2.drawRoundRect(x, y, w-1, h-1, radius*2, radius*2);
+            g2.dispose();
+        }
     }
 }

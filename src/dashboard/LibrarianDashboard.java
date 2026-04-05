@@ -114,11 +114,11 @@ public class LibrarianDashboard extends JFrame {
 				showWelcomeMessage();
 				return;
 			case "Book Management":
-				contentPanel.add(new BookManagementPanel(userId, isDarkMode));
+				contentPanel.add(new BookManagementPanel());
 				statusLabel.setText("Managing books");
 				break;
 			case "Issue Books":
-				contentPanel.add(new IssueBooksPanel(userId, isDarkMode));
+				contentPanel.add(new IssueBooksPanel());
 				statusLabel.setText("Issuing books");
 				break;
 			case "Return Books":
